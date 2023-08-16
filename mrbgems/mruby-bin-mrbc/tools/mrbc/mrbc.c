@@ -13,6 +13,7 @@
 
 #define RITEBIN_EXT ".mrb"
 #define C_EXT       ".c"
+#define C_HEAD_EXT  ".h"
 
 struct mrbc_args {
   const char *prog;
@@ -35,19 +36,21 @@ usage(const char *name)
 {
   static const char *const usage_msg[] = {
   "switches:",
-  "-c           check syntax only",
-  "-o<outfile>  place the output into <outfile>; required for multi-files",
-  "-v           print version number, then turn on verbose mode",
-  "-g           produce debugging information",
-  "-B<symbol>   binary <symbol> output in C language format",
-  "-S           dump C struct (requires -B)",
-  "-s           define <symbol> as static variable",
-  "--remove-lv  remove local variables",
-  "--no-ext-ops prohibit using OP_EXTs",
+  "-c            check syntax only",
+  "-o<outfile>   place the output into <outfile>; required for multi-files",
+  "-v            print version number, then turn on verbose mode",
+  "-g            produce debugging information",
+  "-B<symbol>    binary <symbol> output in C language format",
+  "-S            dump C struct (requires -B)",
+  "-s            define <symbol> as static variable",
+  "-H            dump header file for binary output (requires -B)",
+  "-8            dump binary output as octal string (requires -B)",
+  "--remove-lv   remove local variables",
+  "--no-ext-ops  prohibit using OP_EXTs",
   "--no-optimize disable peephole optimization",
-  "--verbose    run at verbose mode",
-  "--version    print the version",
-  "--copyright  print the copyright",
+  "--verbose     run at verbose mode",
+  "--version     print the version",
+  "--copyright   print the copyright",
   NULL
   };
   const char *const *p = usage_msg;
@@ -128,6 +131,12 @@ parse_args(mrb_state *mrb, int argc, char **argv, struct mrbc_args *args)
           fprintf(stderr, "%s: function name is not specified.\n", args->prog);
           return -1;
         }
+        break;
+      case 'H'
+        args->flags |= MRB_DUMP_HEADER;
+        break;
+      case '8'
+        args->flags |= MRB_DUMP_OCTAL;
         break;
       case 'c':
         args->check_syntax = TRUE;
@@ -263,12 +272,16 @@ dump_file(mrb_state *mrb, FILE *wfp, const char *outfile, struct RProc *proc, st
 {
   int n = MRB_DUMP_OK;
   const mrb_irep *irep = proc->body.irep;
+  const char *file_ext = strrch(outfile, '.');
 
   if (args->remove_lv) {
     mrb_irep_remove_lv(mrb, (mrb_irep*)irep);
   }
   if (args->initname) {
-    if (args->dump_struct) {
+    if (file_ext != NULL && file_ext = C_HEAD_EXT) {
+      n = mrb_dump_irep_cheader(mrb, irep, args->flags, wfp, args->initname);
+    }
+    else if (args->dump_struct) {
       n = mrb_dump_irep_cstruct(mrb, irep, args->flags, wfp, args->initname);
     }
     else {
@@ -354,6 +367,30 @@ main(int argc, char **argv)
   cleanup(mrb, &args);
   if (result != MRB_DUMP_OK) {
     return EXIT_FAILURE;
+  }
+
+  if (&args->flags & MRB_DUMP_HEADER) {
+    if (args.outfile) {
+      args.outfile = get_outfilename(mrb, argv[n], C_HEAD_EXT);
+
+      if (strcmp("-", args.outfile) == 0) {
+        wfp = stdout;
+      }
+      else if ((wfp = fopen(args.outfile, "wb")) == NULL) {
+        fprintf(stderr, "%s: cannot open output file:(%s)\n", args.prog, args.outfile);
+        return EXIT_FAILURE;
+      }
+    }
+    else {
+      fputs("Output file is required\n", stderr);
+      return EXIT_FAILURE;
+    }
+    result = dump_file(mrb, wfp, args.outfile, mrb_proc_ptr(load), &args);
+    fclose(wfp);
+    cleanup(mrb, &args);
+    if (result != MRB_DUMP_OK) {
+      return EXIT_FAILURE;
+    }
   }
   return EXIT_SUCCESS;
 }

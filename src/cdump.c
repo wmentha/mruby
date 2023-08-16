@@ -465,6 +465,45 @@ mrb_dump_irep_cstruct(mrb_state *mrb, const mrb_irep *irep, uint8_t flags, FILE 
   return MRB_DUMP_OK;
 }
 
+int
+mrb_dump_irep_cheader(mrb_state *mrb, const mrb_irep *irep, uint8_t flags, FILE *fp, const char *initname)
+{
+  if (fp == NULL || initname == NULL || initname[0] == '\0') {
+    return MRB_DUMP_INVALID_ARGUMENT;
+  }
+
+  size_t initname_size = strlen(initname), size_t initname_index = 0;
+  const char *initname_upper[initname_size];
+
+  while (initname_index != initname_size) {
+    const char c = initname[initname_index]
+    initname_upper[initname_index] = TOUPPER(c);
+  }
+    if (fprintf(fp,
+        "#ifndef MRUBY_%s_H\n"
+        "#define MRUBY_%s_H\n"
+        "#include <stdint.h>\n" /* for uint8_t under at least Darwin */
+        "#include <stdint.h>\n"
+        "#include %s.h\n\n"
+        "%s\n"
+        "const uint8_t %s[];\n\n"
+        "#endif \/* %s *\/\n",
+        initname_upper,
+        initname_upper,
+        (flags & MRB_DUMP_STATIC) ? "static"
+                                  : "#ifdef __cplusplus\n"
+                                    "extern\n"
+                                    "#endif",
+        initname,
+        initname_upper) < 0) {
+      mrb_free(mrb, bin);
+      return MRB_DUMP_WRITE_FAULT;
+  }
+
+  mrb_free(mrb, bin);
+  return MRB_DUMP_OK;
+}
+
 #ifndef MRB_NO_STDIO
 
 int
@@ -479,7 +518,7 @@ mrb_dump_irep_cfunc(mrb_state *mrb, const mrb_irep *irep, uint8_t flags, FILE *f
   }
   result = mrb_dump_irep(mrb, irep, flags, &bin, &bin_size);
   if (result == MRB_DUMP_OK) {
-    if (fprintf(fp, "#include <stdint.h>\n") < 0) { /* for uint8_t under at least Darwin */
+    if (!(flags & MRB_DUMP_HEADER) && fprintf(fp, "#include <stdint.h>\n") < 0) { /* for uint8_t under at least Darwin */
       mrb_free(mrb, bin);
       return MRB_DUMP_WRITE_FAULT;
     }
