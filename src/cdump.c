@@ -464,4 +464,58 @@ mrb_dump_irep_cstruct(mrb_state *mrb, const mrb_irep *irep, uint8_t flags, FILE 
   fputs("}\n", fp);
   return MRB_DUMP_OK;
 }
+
+#ifndef MRB_NO_STDIO
+
+int
+mrb_dump_irep_cfunc(mrb_state *mrb, const mrb_irep *irep, uint8_t flags, FILE *fp, const char *initname)
+{
+  uint8_t *bin = NULL;
+  size_t bin_size = 0, bin_idx = 0;
+  int result;
+
+  if (fp == NULL || initname == NULL || initname[0] == '\0') {
+    return MRB_DUMP_INVALID_ARGUMENT;
+  }
+  result = mrb_dump_irep(mrb, irep, flags, &bin, &bin_size);
+  if (result == MRB_DUMP_OK) {
+    if (fprintf(fp, "#include <stdint.h>\n") < 0) { /* for uint8_t under at least Darwin */
+      mrb_free(mrb, bin);
+      return MRB_DUMP_WRITE_FAULT;
+    }
+    if (fprintf(fp,
+          "%s\n"
+          "const uint8_t %s[] = {",
+          (flags & MRB_DUMP_STATIC) ? "static"
+                                    : "#ifdef __cplusplus\n"
+                                      "extern\n"
+                                      "#endif",
+          initname) < 0) {
+      mrb_free(mrb, bin);
+      return MRB_DUMP_WRITE_FAULT;
+    }
+    while (bin_idx < bin_size) {
+      if (bin_idx % 16 == 0) {
+        if (fputs("\n", fp) == EOF) {
+          mrb_free(mrb, bin);
+          return MRB_DUMP_WRITE_FAULT;
+        }
+      }
+      if (fprintf(fp, "0x%02x,", bin[bin_idx++]) < 0) {
+        mrb_free(mrb, bin);
+        return MRB_DUMP_WRITE_FAULT;
+      }
+    }
+    if (fputs("\n};\n", fp) == EOF) {
+      mrb_free(mrb, bin);
+      return MRB_DUMP_WRITE_FAULT;
+    }
+  }
+
+  mrb_free(mrb, bin);
+  return result;
+}
+
+#endif /* MRB_NO_STDIO */
+
 #endif
