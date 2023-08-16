@@ -483,13 +483,13 @@ mrb_dump_irep_cheader(mrb_state *mrb, const mrb_irep *irep, uint8_t flags, FILE 
         "#ifndef MRUBY_%s_H\n"
         "#define MRUBY_%s_H\n"
         "#include <stdint.h>\n" /* for uint8_t under at least Darwin */
-        "#include <stdint.h>\n"
-        "#include %s.h\n\n"
+        "#include \"%s.h\"\n"
         "%s\n"
         "const uint8_t %s[];\n\n"
         "#endif \/* %s *\/\n",
         initname_upper,
         initname_upper,
+        initname,
         (flags & MRB_DUMP_STATIC) ? "static"
                                   : "#ifdef __cplusplus\n"
                                     "extern\n"
@@ -524,28 +524,48 @@ mrb_dump_irep_cfunc(mrb_state *mrb, const mrb_irep *irep, uint8_t flags, FILE *f
     }
     if (fprintf(fp,
           "%s\n"
-          "const uint8_t %s[] = {",
+          "const uint8_t %s[] =%s",
           (flags & MRB_DUMP_STATIC) ? "static"
                                     : "#ifdef __cplusplus\n"
                                       "extern\n"
                                       "#endif",
-          initname) < 0) {
+          initname,
+          (flags & MRB_DUMP_OCTAL)  ? ""
+                                    : " {"
+       ) < 0) {
       mrb_free(mrb, bin);
       return MRB_DUMP_WRITE_FAULT;
     }
     while (bin_idx < bin_size) {
       if (bin_idx % 16 == 0) {
-        if (fputs("\n", fp) == EOF) {
+        if ((flags & MRB_DUMP_OCTAL) && fputs("\n\"", fp) == EOF) {
+          mrb_free(mrb, bin);
+          return MRB_DUMP_WRITE_FAULT;
+        }
+        else if (fputs("\n", fp) == EOF) {
           mrb_free(mrb, bin);
           return MRB_DUMP_WRITE_FAULT;
         }
       }
-      if (fprintf(fp, "0x%02x,", bin[bin_idx++]) < 0) {
+      if ((flags & MRB_DUMP_OCTAL) && fprintf(fp, "\\%03o", bin[bin_idx++]) < 0) {
+        mrb_free(mrb, bin);
+        return MRB_DUMP_WRITE_FAULT;
+      }
+      else if (fprintf(fp, "0x%02x,", bin[bin_idx++]) < 0) {
+        mrb_free(mrb, bin);
+        return MRB_DUMP_WRITE_FAULT;
+      }
+      if ((flags & MRB_DUMP_OCTAL) && bin_idx % 16 == 0 && fputs("\"", fp) == EOF) {
         mrb_free(mrb, bin);
         return MRB_DUMP_WRITE_FAULT;
       }
     }
-    if (fputs("\n};\n", fp) == EOF) {
+
+    if ((flags & MRB_DUMP_OCTAL) && fputs("\";\n", fp) == EOF) {
+      mrb_free(mrb, bin);
+      return MRB_DUMP_WRITE_FAULT;
+    }
+    else if (fputs("\n};\n", fp) == EOF) {
       mrb_free(mrb, bin);
       return MRB_DUMP_WRITE_FAULT;
     }
