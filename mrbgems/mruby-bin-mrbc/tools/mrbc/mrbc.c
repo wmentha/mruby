@@ -22,7 +22,7 @@ struct mrbc_args {
   char **argv;
   int argc;
   int idx;
-  uint8_t line_size;
+  uint8_t line_size     : 8;
   mrb_bool check_syntax : 1;
   mrb_bool verbose      : 1;
   mrb_bool remove_lv    : 1;

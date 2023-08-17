@@ -536,14 +536,14 @@ mrb_dump_irep_cvar(mrb_state *mrb, const mrb_irep *irep, uint8_t flags, FILE *fp
           "%s\n"
           "const uint8_t %s[] =%s",
           (flags & MRB_DUMP_HEADER) ? ""
-                                    : "#include <stdint.h>", /* for uint8_t under at least Darwin */
+                                    : "#include <stdint.h>\n", /* for uint8_t under at least Darwin */
           (flags & MRB_DUMP_STATIC) ? "static"
                                     : "#ifdef __cplusplus\n"
                                       "extern\n"
                                       "#endif",
           initname,
           (dump_octal)  ? ""
-                                    : " {"
+                        : " {"
        ) < 0) {
       mrb_free(mrb, bin);
       return MRB_DUMP_WRITE_FAULT;
