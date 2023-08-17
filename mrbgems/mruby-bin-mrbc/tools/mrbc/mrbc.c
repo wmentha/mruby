@@ -23,13 +23,12 @@ struct mrbc_args {
   int argc;
   int idx;
   uint8_t line_size;
-  mrb_bool dump_struct  : 1;
   mrb_bool check_syntax : 1;
   mrb_bool verbose      : 1;
   mrb_bool remove_lv    : 1;
   mrb_bool no_ext_ops   : 1;
   mrb_bool no_optimize  : 1;
-  uint8_t flags         : 4;
+  uint8_t flags         : 5;
 };
 
 static void
@@ -119,7 +118,7 @@ parse_args(mrb_state *mrb, int argc, char **argv, struct mrbc_args *args)
         }
         break;
       case 'S':
-        args->dump_struct = TRUE;
+        args->flags |= MRB_DUMP_STRUCT;
         break;
       case 'B':
         if (argv[i][2] == '\0' && argv[i+1]) {
@@ -301,7 +300,7 @@ dump_file(mrb_state *mrb, FILE *wfp, const char *outfile, struct RProc *proc, st
     if (file_ext != NULL && file_ext = C_HEAD_EXT) {
       n = mrb_dump_irep_cheader(mrb, irep, args->flags, wfp, args->initname);
     }
-    else if (args->dump_struct) {
+    else if (args->flags & MRB_DUMP_STRUCT) {
       n = mrb_dump_irep_cstruct(mrb, irep, args->flags, wfp, args->initname);
     }
     else {

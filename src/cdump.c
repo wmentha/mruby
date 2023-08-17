@@ -432,36 +432,44 @@ mrb_dump_irep_cstruct(mrb_state *mrb, const mrb_irep *irep, uint8_t flags, FILE 
   if (fp == NULL || initname == NULL || initname[0] == '\0') {
     return MRB_DUMP_INVALID_ARGUMENT;
   }
-  if (fprintf(fp, "#include <mruby.h>\n"
-                  "#include <mruby/irep.h>\n"
-                  "#include <mruby/debug.h>\n"
-                  "#include <mruby/proc.h>\n"
-                  "#include <mruby/presym.h>\n"
-                  "\n") < 0) {
+  if (fprintf(fp,
+              "%s",
+              !(flags & MRB_DUMP_HEADER) ? "#include <mruby.h>\n"
+                                           "#include <mruby/irep.h>\n"
+                                           "#include <mruby/debug.h>\n"
+                                           "#include <mruby/proc.h>\n"
+                                           "#include <mruby/presym.h>\n\n"
+                                           "#define mrb_BRACED(...) {__VA_ARGS__}\n"
+                                           "#define mrb_DEFINE_SYMS_VAR(name, len, syms, qualifier) \\\n"
+                                           "  static qualifier mrb_sym name[len] = mrb_BRACED syms\n"
+                                         : "",
+             ) < 0) {
     return MRB_DUMP_WRITE_FAULT;
   }
-  fputs("#define mrb_BRACED(...) {__VA_ARGS__}\n", fp);
-  fputs("#define mrb_DEFINE_SYMS_VAR(name, len, syms, qualifier) \\\n", fp);
-  fputs("  static qualifier mrb_sym name[len] = mrb_BRACED syms\n", fp);
-  fputs("\n", fp);
   mrb_value init_syms_code = mrb_str_new_capa(mrb, 0);
   int max = 1;
   int n = cdump_irep_struct(mrb, irep, flags, fp, initname, 0, init_syms_code, &max);
   if (n != MRB_DUMP_OK) return n;
-  fprintf(fp,
+  if (fprintf(fp,
           "%s\n"
-          "const struct RProc %s[] = {{\n",
+          "const struct RProc %s[] = {{\n"
+          "NULL,NULL,MRB_TT_PROC,MRB_GC_RED,0,{&%s_irep_0},NULL,{NULL},\n}};\n"
+          "%s_init_syms(mrb_state *mrb)\n"
+          "static void\n"
+          "%s_init_syms(mrb_state *mrb)\n"
+          "{\n"
+          "%s\n"
+          "}\n",
           (flags & MRB_DUMP_STATIC) ? "static"
                                     : "#ifdef __cplusplus\n"
                                       "extern\n"
                                       "#endif",
-          initname);
-  fprintf(fp, "NULL,NULL,MRB_TT_PROC,MRB_GC_RED,0,{&%s_irep_0},NULL,{NULL},\n}};\n", initname);
-  fputs("static void\n", fp);
-  fprintf(fp, "%s_init_syms(mrb_state *mrb)\n", initname);
-  fputs("{\n", fp);
-  fputs(RSTRING_PTR(init_syms_code), fp);
-  fputs("}\n", fp);
+          initname,
+          initname,
+          initname,
+          RSTRING_PTR(init_syms_code)) < 0) {
+    return MRB_DUMP_WRITE_FAULT;
+  }
   return MRB_DUMP_OK;
 }
 
@@ -483,24 +491,29 @@ mrb_dump_irep_cheader(mrb_state *mrb, const mrb_irep *irep, uint8_t flags, FILE 
         "#ifndef MRUBY_%s_H\n"
         "#define MRUBY_%s_H\n"
         "#include <stdint.h>\n" /* for uint8_t under at least Darwin */
-        "#include \"%s.h\"\n"
         "%s\n"
         "const uint8_t %s[];\n\n"
         "#endif \/* %s *\/\n",
         initname_upper,
         initname_upper,
-        initname,
+        (flags & MRB_DUMP_STRUCT) ? "#include <mruby.h>\n"
+                                    "#include <mruby/irep.h>\n"
+                                    "#include <mruby/debug.h>\n"
+                                    "#include <mruby/proc.h>\n"
+                                    "#include <mruby/presym.h>\n\n"
+                                    "#define mrb_BRACED(...) {__VA_ARGS__}\n"
+                                    "#define mrb_DEFINE_SYMS_VAR(name, len, syms, qualifier) \\\n"
+                                    "  static qualifier mrb_sym name[len] = mrb_BRACED syms\n"
+                                  : "",
         (flags & MRB_DUMP_STATIC) ? "static"
                                   : "#ifdef __cplusplus\n"
                                     "extern\n"
                                     "#endif",
         initname,
         initname_upper) < 0) {
-      mrb_free(mrb, bin);
       return MRB_DUMP_WRITE_FAULT;
   }
 
-  mrb_free(mrb, bin);
   return MRB_DUMP_OK;
 }
 
@@ -518,13 +531,12 @@ mrb_dump_irep_cfunc(mrb_state *mrb, const mrb_irep *irep, uint8_t flags, FILE *f
   }
   result = mrb_dump_irep(mrb, irep, flags, &bin, &bin_size);
   if (result == MRB_DUMP_OK) {
-    if (!(flags & MRB_DUMP_HEADER) && fprintf(fp, "#include <stdint.h>\n") < 0) { /* for uint8_t under at least Darwin */
-      mrb_free(mrb, bin);
-      return MRB_DUMP_WRITE_FAULT;
-    }
     if (fprintf(fp,
+          "%s"
           "%s\n"
           "const uint8_t %s[] =%s",
+          (flags & MRB_DUMP_HEADER) ? ""
+                                    : "#include <stdint.h>", /* for uint8_t under at least Darwin */
           (flags & MRB_DUMP_STATIC) ? "static"
                                     : "#ifdef __cplusplus\n"
                                       "extern\n"
