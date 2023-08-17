@@ -518,7 +518,7 @@ mrb_dump_irep_cheader(mrb_state *mrb, const mrb_irep *irep, uint8_t flags, FILE 
 }
 
 int
-mrb_dump_irep_cfunc(mrb_state *mrb, const mrb_irep *irep, uint8_t flags, FILE *fp, const char *initname, uint8_t line_size)
+mrb_dump_irep_cvar(mrb_state *mrb, const mrb_irep *irep, uint8_t flags, FILE *fp, const char *initname, uint8_t line_size)
 {
   uint8_t *bin = NULL;
   size_t bin_size = 0, bin_idx = 0;

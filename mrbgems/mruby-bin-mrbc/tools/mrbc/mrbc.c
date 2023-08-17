@@ -304,7 +304,7 @@ dump_file(mrb_state *mrb, FILE *wfp, const char *outfile, struct RProc *proc, st
       n = mrb_dump_irep_cstruct(mrb, irep, args->flags, wfp, args->initname);
     }
     else {
-      n = mrb_dump_irep_cfunc(mrb, irep, args->flags, wfp, args->initname, args->line_size);
+      n = mrb_dump_irep_cvar(mrb, irep, args->flags, wfp, args->initname, args->line_size);
     }
     if (n == MRB_DUMP_INVALID_ARGUMENT) {
       fprintf(stderr, "%s: invalid C language symbol name\n", args->initname);
