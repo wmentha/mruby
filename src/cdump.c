@@ -504,15 +504,14 @@ mrb_dump_irep_cheader(mrb_state *mrb, const mrb_irep *irep, uint8_t flags, FILE 
   return MRB_DUMP_OK;
 }
 
-#ifndef MRB_NO_STDIO
-
 int
-mrb_dump_irep_cfunc(mrb_state *mrb, const mrb_irep *irep, uint8_t flags, FILE *fp, const char *initname)
+mrb_dump_irep_cfunc(mrb_state *mrb, const mrb_irep *irep, uint8_t flags, FILE *fp, const char *initname, uint8_t line_size)
 {
   uint8_t *bin = NULL;
   size_t bin_size = 0, bin_idx = 0;
   int result;
   uint8_t dump_octal = flags & MRB_DUMP_OCTAL;
+  uint8_t dump_line_size = flags & MRB_DUMP_LINE_SIZE;
 
   if (fp == NULL || initname == NULL || initname[0] == '\0') {
     return MRB_DUMP_INVALID_ARGUMENT;
@@ -538,7 +537,7 @@ mrb_dump_irep_cfunc(mrb_state *mrb, const mrb_irep *irep, uint8_t flags, FILE *f
       return MRB_DUMP_WRITE_FAULT;
     }
     while (bin_idx < bin_size) {
-      if (bin_idx % 16 == 0) {
+      if (bin_idx % line_size == 0) {
         if (dump_octal && fputs("\n\"", fp) == EOF) {
           mrb_free(mrb, bin);
           return MRB_DUMP_WRITE_FAULT;
@@ -556,7 +555,7 @@ mrb_dump_irep_cfunc(mrb_state *mrb, const mrb_irep *irep, uint8_t flags, FILE *f
         mrb_free(mrb, bin);
         return MRB_DUMP_WRITE_FAULT;
       }
-      if (dump_octal && bin_idx % 16 == 0 && bin_idx == bin_size - 1 && fputs("\"", fp) == EOF) {
+      if (dump_octal && bin_idx % line_size == 0 && bin_idx == bin_size - 1 && fputs("\"", fp) == EOF) {
         mrb_free(mrb, bin);
         return MRB_DUMP_WRITE_FAULT;
       }
@@ -577,5 +576,3 @@ mrb_dump_irep_cfunc(mrb_state *mrb, const mrb_irep *irep, uint8_t flags, FILE *f
 }
 
 #endif /* MRB_NO_STDIO */
-
-#endif

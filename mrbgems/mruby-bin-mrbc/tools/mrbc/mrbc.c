@@ -22,6 +22,7 @@ struct mrbc_args {
   char **argv;
   int argc;
   int idx;
+  uint8_t line_size;
   mrb_bool dump_struct  : 1;
   mrb_bool check_syntax : 1;
   mrb_bool verbose      : 1;
@@ -36,21 +37,22 @@ usage(const char *name)
 {
   static const char *const usage_msg[] = {
   "switches:",
-  "-c            check syntax only",
-  "-o<outfile>   place the output into <outfile>; required for multi-files",
-  "-v            print version number, then turn on verbose mode",
-  "-g            produce debugging information",
-  "-B<symbol>    binary <symbol> output in C language format",
-  "-S            dump C struct (requires -B)",
-  "-s            define <symbol> as static variable",
-  "-H            dump header file for binary output (requires -B)",
-  "-8            dump binary output as octal string (requires -B)",
-  "--remove-lv   remove local variables",
-  "--no-ext-ops  prohibit using OP_EXTs",
-  "--no-optimize disable peephole optimization",
-  "--verbose     run at verbose mode",
-  "--version     print the version",
-  "--copyright   print the copyright",
+  "-c                  check syntax only",
+  "-o<outfile>         place the output into <outfile>; required for multi-files",
+  "-v                  print version number, then turn on verbose mode",
+  "-g                  produce debugging information",
+  "-B<symbol>          binary <symbol> output in C language format",
+  "-S                  dump C struct (requires -B)",
+  "-s                  define <symbol> as static variable",
+  "-H                  dump header file for binary output (requires -B)",
+  "-8                  dump binary output as octal string",
+  "--line-size<number> number of hex or octal values per line (min 1, max 255, default 16)" 
+  "--remove-lv         remove local variables",
+  "--no-ext-ops        prohibit using OP_EXTs",
+  "--no-optimize       disable peephole optimization",
+  "--verbose           run at verbose mode",
+  "--version           print the version",
+  "--copyright         print the copyright",
   NULL
   };
   const char *const *p = usage_msg;
@@ -185,6 +187,24 @@ parse_args(mrb_state *mrb, int argc, char **argv, struct mrbc_args *args)
           args->no_optimize = TRUE;
           break;
         }
+        else if (strcmp(argv[i] + 2, "line-size") == 0) {
+          if (args->line_size)
+          mrb_bool line_size_bounds;
+          mrb_int line_size;
+          if (argv[i][2] == '\0' && argv[i+1]) {
+            i++;
+            line_size_bounds = mrb_read_int(arbv, argv[i], NULL, NULL, &line_size);
+          }
+          else {
+            line_size_bounds = mrb_read_int(arbv, argv[i + 2], NULL, NULL, &line_size);
+          }
+          if (!line_size_bounds || line_size < 1 || line_size > 255) {
+            fprintf(stderr, "%s: line size out of bounds. (%d)\n", args->prog, line_size);
+            return -1;
+          }
+          args->line_size = (uint8_t)line_size;
+          break;
+        }
         return -1;
       default:
         return i;
@@ -285,7 +305,7 @@ dump_file(mrb_state *mrb, FILE *wfp, const char *outfile, struct RProc *proc, st
       n = mrb_dump_irep_cstruct(mrb, irep, args->flags, wfp, args->initname);
     }
     else {
-      n = mrb_dump_irep_cfunc(mrb, irep, args->flags, wfp, args->initname);
+      n = mrb_dump_irep_cfunc(mrb, irep, args->flags, wfp, args->initname, args->line_size);
     }
     if (n == MRB_DUMP_INVALID_ARGUMENT) {
       fprintf(stderr, "%s: invalid C language symbol name\n", args->initname);
@@ -314,6 +334,7 @@ main(int argc, char **argv)
     return EXIT_FAILURE;
   }
 
+  args.line_size = 16;
   n = parse_args(mrb, argc, argv, &args);
   if (n < 0) {
     cleanup(mrb, &args);
