@@ -28,7 +28,7 @@ struct mrbc_args {
   mrb_bool remove_lv    : 1;
   mrb_bool no_ext_ops   : 1;
   mrb_bool no_optimize  : 1;
-  uint8_t flags         : 2;
+  uint8_t flags         : 4;
 };
 
 static void
@@ -272,7 +272,7 @@ dump_file(mrb_state *mrb, FILE *wfp, const char *outfile, struct RProc *proc, st
 {
   int n = MRB_DUMP_OK;
   const mrb_irep *irep = proc->body.irep;
-  const char *file_ext = strrch(outfile, '.');
+  const char *file_ext = strrchr(outfile, '.');
 
   if (args->remove_lv) {
     mrb_irep_remove_lv(mrb, (mrb_irep*)irep);
@@ -364,22 +364,21 @@ main(int argc, char **argv)
   }
   result = dump_file(mrb, wfp, args.outfile, mrb_proc_ptr(load), &args);
   fclose(wfp);
-  cleanup(mrb, &args);
   if (result != MRB_DUMP_OK) {
+    cleanup(mrb, &args);
     return EXIT_FAILURE;
   }
 
-  if (&args->flags & MRB_DUMP_HEADER) {
-    if (args.outfile) {
-      args.outfile = get_outfilename(mrb, argv[n], C_HEAD_EXT);
+  if (args->flags & MRB_DUMP_HEADER) {
+    mrb_free(mrb, (void*)args->outfile);
+    args.outfile = get_outfilename(mrb, argv[n], C_HEAD_EXT);
 
-      if (strcmp("-", args.outfile) == 0) {
-        wfp = stdout;
-      }
-      else if ((wfp = fopen(args.outfile, "wb")) == NULL) {
-        fprintf(stderr, "%s: cannot open output file:(%s)\n", args.prog, args.outfile);
-        return EXIT_FAILURE;
-      }
+    if (strcmp("-", args.outfile) == 0) {
+      wfp = stdout;
+    }
+    else if ((wfp = fopen(args.outfile, "wb")) == NULL) {
+      fprintf(stderr, "%s: cannot open output file:(%s)\n", args.prog, args.outfile);
+      return EXIT_FAILURE;
     }
     else {
       fputs("Output file is required\n", stderr);
@@ -387,11 +386,12 @@ main(int argc, char **argv)
     }
     result = dump_file(mrb, wfp, args.outfile, mrb_proc_ptr(load), &args);
     fclose(wfp);
-    cleanup(mrb, &args);
     if (result != MRB_DUMP_OK) {
+      cleanup(mrb, &args);
       return EXIT_FAILURE;
     }
   }
+  cleanup(mrb, &args);
   return EXIT_SUCCESS;
 }
 
