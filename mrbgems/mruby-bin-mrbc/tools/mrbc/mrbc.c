@@ -45,7 +45,7 @@ usage(const char *name)
   "-s                  define <symbol> as static variable",
   "-H                  dump header file for binary output (requires -B)",
   "-8                  dump binary output as octal string",
-  "--line-size<number> number of hex or octal values per line (min 1, max 255, default 16)" 
+  "--line-size<number> number of hex or octal values per line (min 1, max 255, default 16)",
   "--remove-lv         remove local variables",
   "--no-ext-ops        prohibit using OP_EXTs",
   "--no-optimize       disable peephole optimization",
