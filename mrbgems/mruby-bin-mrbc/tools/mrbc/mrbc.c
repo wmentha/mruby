@@ -133,10 +133,10 @@ parse_args(mrb_state *mrb, int argc, char **argv, struct mrbc_args *args)
           return -1;
         }
         break;
-      case 'H'
+      case 'H':
         args->flags |= MRB_DUMP_HEADER;
         break;
-      case '8'
+      case '8':
         args->flags |= MRB_DUMP_OCTAL;
         break;
       case 'c':
@@ -187,15 +187,14 @@ parse_args(mrb_state *mrb, int argc, char **argv, struct mrbc_args *args)
           break;
         }
         else if (strcmp(argv[i] + 2, "line-size") == 0) {
-          if (args->line_size)
           mrb_bool line_size_bounds;
           mrb_int line_size;
           if (argv[i][2] == '\0' && argv[i+1]) {
             i++;
-            line_size_bounds = mrb_read_int(arbv, argv[i], NULL, NULL, &line_size);
+            line_size_bounds = mrb_read_int(argv, argv[i], NULL, &line_size);
           }
           else {
-            line_size_bounds = mrb_read_int(arbv, argv[i + 2], NULL, NULL, &line_size);
+            line_size_bounds = mrb_read_int(argv, argv[i + 2], NULL, &line_size);
           }
           if (!line_size_bounds || line_size < 1 || line_size > 255) {
             fprintf(stderr, "%s: line size out of bounds. (%d)\n", args->prog, line_size);
@@ -297,7 +296,7 @@ dump_file(mrb_state *mrb, FILE *wfp, const char *outfile, struct RProc *proc, st
     mrb_irep_remove_lv(mrb, (mrb_irep*)irep);
   }
   if (args->initname) {
-    if (file_ext != NULL && file_ext = C_HEAD_EXT) {
+    if (file_ext != NULL && file_ext == C_HEAD_EXT) {
       n = mrb_dump_irep_cheader(mrb, irep, args->flags, wfp, args->initname);
     }
     else if (args->flags & MRB_DUMP_STRUCT) {
@@ -389,8 +388,8 @@ main(int argc, char **argv)
     return EXIT_FAILURE;
   }
 
-  if (args->flags & MRB_DUMP_HEADER) {
-    mrb_free(mrb, (void*)args->outfile);
+  if (args.flags & MRB_DUMP_HEADER) {
+    mrb_free(mrb, (void*)args.outfile);
     args.outfile = get_outfilename(mrb, argv[n], C_HEAD_EXT);
 
     if (strcmp("-", args.outfile) == 0) {

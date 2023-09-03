@@ -442,7 +442,7 @@ mrb_dump_irep_cstruct(mrb_state *mrb, const mrb_irep *irep, uint8_t flags, FILE 
                                            "#define mrb_BRACED(...) {__VA_ARGS__}\n"
                                            "#define mrb_DEFINE_SYMS_VAR(name, len, syms, qualifier) \\\n"
                                            "  static qualifier mrb_sym name[len] = mrb_BRACED syms\n"
-                                         : "",
+                                         : ""
              ) < 0) {
     return MRB_DUMP_WRITE_FAULT;
   }
@@ -454,7 +454,6 @@ mrb_dump_irep_cstruct(mrb_state *mrb, const mrb_irep *irep, uint8_t flags, FILE 
           "%s\n"
           "const struct RProc %s[] = {{\n"
           "NULL,NULL,MRB_TT_PROC,MRB_GC_RED,0,{&%s_irep_0},NULL,{NULL},\n}};\n"
-          "%s_init_syms(mrb_state *mrb)\n"
           "static void\n"
           "%s_init_syms(mrb_state *mrb)\n"
           "{\n"
@@ -480,11 +479,12 @@ mrb_dump_irep_cheader(mrb_state *mrb, const mrb_irep *irep, uint8_t flags, FILE 
     return MRB_DUMP_INVALID_ARGUMENT;
   }
 
-  size_t initname_size = strlen(initname), size_t initname_index = 0;
+  size_t initname_size = strlen(initname);
+  size_t initname_index = 0;
   const char *initname_upper[initname_size];
 
   while (initname_index != initname_size) {
-    const char c = initname[initname_index]
+    const char c = initname[initname_index];
     initname_upper[initname_index] = TOUPPER(c);
   }
     if (fprintf(fp,
@@ -493,7 +493,7 @@ mrb_dump_irep_cheader(mrb_state *mrb, const mrb_irep *irep, uint8_t flags, FILE 
         "#include <stdint.h>\n" /* for uint8_t under at least Darwin */
         "%s\n"
         "const uint8_t %s[];\n\n"
-        "#endif \/* %s *\/\n",
+        "#endif /* %s */\n",
         initname_upper,
         initname_upper,
         (flags & MRB_DUMP_STRUCT) ? "#include <mruby.h>\n"
@@ -524,7 +524,6 @@ mrb_dump_irep_cvar(mrb_state *mrb, const mrb_irep *irep, uint8_t flags, FILE *fp
   size_t bin_size = 0, bin_idx = 0;
   int result;
   uint8_t dump_octal = flags & MRB_DUMP_OCTAL;
-  uint8_t dump_line_size = flags & MRB_DUMP_LINE_SIZE;
 
   if (fp == NULL || initname == NULL || initname[0] == '\0') {
     return MRB_DUMP_INVALID_ARGUMENT;
