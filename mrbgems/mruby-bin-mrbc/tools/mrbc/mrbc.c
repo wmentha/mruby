@@ -37,14 +37,14 @@ usage(const char *name)
   static const char *const usage_msg[] = {
   "switches:",
   "-c                  check syntax only",
-  "-o<outfile>         place the output into <outfile>; required for multi-files",
+  "-o<outfile>         place the output into <outfile>; required for multi-files; appropriate extension is appended",
   "-v                  print version number, then turn on verbose mode",
   "-g                  produce debugging information",
   "-B<symbol>          binary <symbol> output in C language format",
-  "-S                  dump C struct (requires -B)",
-  "-s                  define <symbol> as static variable",
-  "-H                  dump header file for binary output (requires -B)",
-  "-8                  dump binary output as octal string",
+  "-S                  dump output as C struct (requires -B)",
+  "-s                  define <symbol> as C static variable (requires -B)",
+  "-H                  dump binary output with header file (requires -B)",
+  "-8                  dump binary output as octal string (requires -B)",
   "--line-size<number> number of hex or octal values per line (min 1, max 255, default 16)",
   "--remove-lv         remove local variables",
   "--no-ext-ops        prohibit using OP_EXTs",
@@ -111,10 +111,10 @@ parse_args(mrb_state *mrb, int argc, char **argv, struct mrbc_args *args)
         }
         if (argv[i][2] == '\0' && argv[i+1]) {
           i++;
-          args->outfile = get_outfilename(mrb, argv[i], "");
+          args->outfile = argv[i];
         }
         else {
-          args->outfile = get_outfilename(mrb, argv[i] + 2, "");
+          args->outfile = argv[i] + 2;
         }
         break;
       case 'S':
@@ -191,10 +191,10 @@ parse_args(mrb_state *mrb, int argc, char **argv, struct mrbc_args *args)
           mrb_int line_size;
           if (argv[i][2] == '\0' && argv[i+1]) {
             i++;
-            line_size_bounds = mrb_read_int(argv, argv[i], NULL, &line_size);
+            line_size_bounds = mrb_read_int(argv[i], NULL, NULL, &line_size);
           }
           else {
-            line_size_bounds = mrb_read_int(argv, argv[i + 2], NULL, &line_size);
+            line_size_bounds = mrb_read_int(argv[i] + 2, NULL, NULL, &line_size);
           }
           if (!line_size_bounds || line_size < 1 || line_size > 255) {
             fprintf(stderr, "%s: line size out of bounds. (%d)\n", args->prog, line_size);
@@ -213,13 +213,6 @@ parse_args(mrb_state *mrb, int argc, char **argv, struct mrbc_args *args)
     }
   }
   return i;
-}
-
-static void
-cleanup(mrb_state *mrb, struct mrbc_args *args)
-{
-  mrb_free(mrb, (void*)args->outfile);
-  mrb_close(mrb);
 }
 
 static int
@@ -310,7 +303,13 @@ dump_file(mrb_state *mrb, FILE *wfp, const char *outfile, struct RProc *proc, st
     }
   }
   else {
-    n = mrb_dump_irep_binary(mrb, irep, args->flags, wfp);
+    if (args->flags & MRB_DUMP_STATIC) {
+      fprintf(stderr, "%s: -s option requires -B<symbol>\n", args->prog);
+      return MRB_DUMP_INVALID_ARGUMENT;
+    }
+    else {
+      n = mrb_dump_irep_binary(mrb, irep, args->flags, wfp);
+    }
   }
   if (n != MRB_DUMP_OK) {
     fprintf(stderr, "%s: error in mrb dump (%s) %d\n", args->prog, outfile, n);
@@ -326,6 +325,7 @@ main(int argc, char **argv)
   struct mrbc_args args;
   FILE *wfp;
   mrb_value load;
+  const char* outfilename;
 
   if (mrb == NULL) {
     fputs("Invalid mrb_state, exiting mrbc\n", stderr);
@@ -335,7 +335,7 @@ main(int argc, char **argv)
   args.line_size = 16;
   n = parse_args(mrb, argc, argv, &args);
   if (n < 0) {
-    cleanup(mrb, &args);
+    mrb_close(mrb);
     usage(argv[0]);
     return EXIT_FAILURE;
   }
@@ -345,7 +345,7 @@ main(int argc, char **argv)
   }
   if (args.outfile == NULL && !args.check_syntax) {
     if (n + 1 == argc) {
-      args.outfile = get_outfilename(mrb, argv[n], args.initname ? C_EXT : RITEBIN_EXT);
+      outfilename = get_outfilename(mrb, args.outfile ? args.outfile, argv[n], args.initname ? C_EXT : RITEBIN_EXT);
     }
     else {
       fprintf(stderr, "%s: output file should be specified to compile multiple files\n", args.prog);
@@ -356,24 +356,22 @@ main(int argc, char **argv)
   args.idx = n;
   load = load_file(mrb, &args);
   if (mrb_nil_p(load)) {
-    cleanup(mrb, &args);
+    mrb_close(mrb);
     return EXIT_FAILURE;
   }
   if (args.check_syntax) {
     printf("%s:%s:Syntax OK\n", args.prog, argv[n]);
-  }
-
-  if (args.check_syntax) {
-    cleanup(mrb, &args);
+    mrb_close(mrb);
     return EXIT_SUCCESS;
   }
 
+  /* bytecode/C file dump */
   if (args.outfile) {
     if (strcmp("-", args.outfile) == 0) {
       wfp = stdout;
     }
-    else if ((wfp = fopen(args.outfile, "wb")) == NULL) {
-      fprintf(stderr, "%s: cannot open output file:(%s)\n", args.prog, args.outfile);
+    else if ((wfp = fopen(outfilename, "wb")) == NULL) {
+      fprintf(stderr, "%s: cannot open output file:(%s)\n", args.prog, outfilename);
       return EXIT_FAILURE;
     }
   }
@@ -381,36 +379,38 @@ main(int argc, char **argv)
     fputs("Output file is required\n", stderr);
     return EXIT_FAILURE;
   }
-  result = dump_file(mrb, wfp, args.outfile, mrb_proc_ptr(load), &args);
+  result = dump_file(mrb, wfp, outfilename, mrb_proc_ptr(load), &args);
   fclose(wfp);
+  mrb_free(mrb, (void*)outfilename);
   if (result != MRB_DUMP_OK) {
-    cleanup(mrb, &args);
+    mrb_close(mrb);
     return EXIT_FAILURE;
   }
 
+  /* C header file dump */
   if (args.flags & MRB_DUMP_HEADER) {
-    mrb_free(mrb, (void*)args.outfile);
-    args.outfile = get_outfilename(mrb, argv[n], C_HEAD_EXT);
+    outfilename = get_outfilename(mrb, args.outfile, C_HEAD_EXT);
 
     if (strcmp("-", args.outfile) == 0) {
       wfp = stdout;
     }
-    else if ((wfp = fopen(args.outfile, "wb")) == NULL) {
-      fprintf(stderr, "%s: cannot open output file:(%s)\n", args.prog, args.outfile);
+    else if ((wfp = fopen(outfilename, "wb")) == NULL) {
+      fprintf(stderr, "%s: cannot open output file:(%s)\n", args.prog, outfilename);
       return EXIT_FAILURE;
     }
     else {
       fputs("Output file is required\n", stderr);
       return EXIT_FAILURE;
     }
-    result = dump_file(mrb, wfp, args.outfile, mrb_proc_ptr(load), &args);
+    result = dump_file(mrb, wfp, outfilename, mrb_proc_ptr(load), &args);
     fclose(wfp);
+    mrb_free(mrb, (void*)outfilename);
     if (result != MRB_DUMP_OK) {
-      cleanup(mrb, &args);
+      mrb_close(mrb);
       return EXIT_FAILURE;
     }
   }
-  cleanup(mrb, &args);
+  mrb_close(mrb);
   return EXIT_SUCCESS;
 }
 
