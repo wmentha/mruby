@@ -544,7 +544,7 @@ mrb_dump_irep_cvar(mrb_state *mrb, const mrb_irep *irep, uint8_t flags, FILE *fp
                                       "extern\n"
                                       "#endif",
           initname,
-          (dump_string)  ? ""
+          (dump_string) ? ""
                         : " {"
        ) < 0) {
       mrb_free(mrb, bin);
@@ -569,7 +569,7 @@ mrb_dump_irep_cvar(mrb_state *mrb, const mrb_irep *irep, uint8_t flags, FILE *fp
         mrb_free(mrb, bin);
         return MRB_DUMP_WRITE_FAULT;  
       }
-      else if (fprintf(fp, (dump_hex_caps ? "0x%02hhX" : "0x%02hhx"), bin[bin_idx++]) < 0) {
+      else if (fprintf(fp, (dump_hex_caps ? "0x%02hhX," : "0x%02hhx,"), bin[bin_idx++]) < 0) {
         mrb_free(mrb, bin);
         return MRB_DUMP_WRITE_FAULT;
       }
