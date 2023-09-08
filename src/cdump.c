@@ -523,7 +523,10 @@ mrb_dump_irep_cvar(mrb_state *mrb, const mrb_irep *irep, uint8_t flags, FILE *fp
   uint8_t *bin = NULL;
   size_t bin_size = 0, bin_idx = 0;
   int result;
-  uint8_t dump_octal = flags & MRB_DUMP_OCTAL;
+  mrb_bool dump_octal = (mrb_bool)(flags & MRB_DUMP_OCTAL);
+  mrb_bool dump_hex = (mrb_bool)(flags & MRB_DUMP_HEX);
+  mrb_bool dump_hex_caps = (mrb_bool)(flags & MRB_DUMP_HEX_CAPITALS);
+  mrb_bool dump_string = dump_octal | dump_hex;
 
   if (fp == NULL || initname == NULL || initname[0] == '\0') {
     return MRB_DUMP_INVALID_ARGUMENT;
@@ -541,7 +544,7 @@ mrb_dump_irep_cvar(mrb_state *mrb, const mrb_irep *irep, uint8_t flags, FILE *fp
                                       "extern\n"
                                       "#endif",
           initname,
-          (dump_octal)  ? ""
+          (dump_string)  ? ""
                         : " {"
        ) < 0) {
       mrb_free(mrb, bin);
@@ -549,7 +552,7 @@ mrb_dump_irep_cvar(mrb_state *mrb, const mrb_irep *irep, uint8_t flags, FILE *fp
     }
     while (bin_idx < bin_size) {
       if (bin_idx % line_size == 0) {
-        if (dump_octal && fputs("\n\"", fp) == EOF) {
+        if (dump_string && fputs("\n\"", fp) == EOF) {
           mrb_free(mrb, bin);
           return MRB_DUMP_WRITE_FAULT;
         }
@@ -558,21 +561,25 @@ mrb_dump_irep_cvar(mrb_state *mrb, const mrb_irep *irep, uint8_t flags, FILE *fp
           return MRB_DUMP_WRITE_FAULT;
         }
       }
-      if (dump_octal && fprintf(fp, "\\%03o", bin[bin_idx++]) < 0) {
+      if (dump_octal && fprintf(fp, "\\%03hho", bin[bin_idx++]) < 0) {
         mrb_free(mrb, bin);
         return MRB_DUMP_WRITE_FAULT;
       }
-      else if (fprintf(fp, "0x%02x,", bin[bin_idx++]) < 0) {
+      else if (dump_hex && fprintf(fp, (dump_hex_caps ? "\\x%02hhX" : "\\x%02hhx"), bin[bin_idx++]) < 0) {
+        mrb_free(mrb, bin);
+        return MRB_DUMP_WRITE_FAULT;  
+      }
+      else if (fprintf(fp, (dump_hex_caps ? "0x%02hhX" : "0x%02hhx"), bin[bin_idx++]) < 0) {
         mrb_free(mrb, bin);
         return MRB_DUMP_WRITE_FAULT;
       }
-      if (dump_octal && bin_idx % line_size == 0 && bin_idx == bin_size - 1 && fputs("\"", fp) == EOF) {
+      if (dump_string && bin_idx % line_size == 0 && bin_idx == bin_size - 1 && fputs("\"", fp) == EOF) {
         mrb_free(mrb, bin);
         return MRB_DUMP_WRITE_FAULT;
       }
     }
 
-    if (dump_octal && fputs("\";\n", fp) == EOF) {
+    if (dump_string && fputs("\";\n", fp) == EOF) {
       mrb_free(mrb, bin);
       return MRB_DUMP_WRITE_FAULT;
     }

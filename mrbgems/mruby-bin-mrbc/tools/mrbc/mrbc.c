@@ -28,7 +28,7 @@ struct mrbc_args {
   mrb_bool remove_lv    : 1;
   mrb_bool no_ext_ops   : 1;
   mrb_bool no_optimize  : 1;
-  uint8_t flags         : 5;
+  uint8_t flags         : 7;
 };
 
 static void
@@ -37,7 +37,7 @@ usage(const char *name)
   static const char *const usage_msg[] = {
   "switches:",
   "-c                  check syntax only",
-  "-o<outfile>         place the output into <outfile>; required for multi-files; appropriate extension is appended",
+  "-o<outfile>         place the output into <outfile>; required for multi-files; appropriate file extension is appended",
   "-v                  print version number, then turn on verbose mode",
   "-g                  produce debugging information",
   "-B<symbol>          binary <symbol> output in C language format",
@@ -45,6 +45,8 @@ usage(const char *name)
   "-s                  define <symbol> as C static variable (requires -B)",
   "-H                  dump binary output with header file (requires -B)",
   "-8                  dump binary output as octal string (requires -B)",
+  "-6                  dump binary output as hex string (requires -B)",
+  "--hex-capitals      dump hex output with capitals (ABCDEF)",
   "--line-size<number> number of hex or octal values per line (min 1, max 255, default 16)",
   "--remove-lv         remove local variables",
   "--no-ext-ops        prohibit using OP_EXTs",
@@ -139,6 +141,9 @@ parse_args(mrb_state *mrb, int argc, char **argv, struct mrbc_args *args)
       case '8':
         args->flags |= MRB_DUMP_OCTAL;
         break;
+      case '6':
+        args->flags |= MRB_DUMP_HEX;
+        break;
       case 'c':
         args->check_syntax = TRUE;
         break;
@@ -184,6 +189,10 @@ parse_args(mrb_state *mrb, int argc, char **argv, struct mrbc_args *args)
         }
         else if (strcmp(argv[i] + 2, "no-optimize") == 0) {
           args->no_optimize = TRUE;
+          break;
+        }
+        else if (strcmp(argv[i] + 2, "hex-capitals") == 0) {
+          args->flags |= MRB_DUMP_HEX_CAPITALS;
           break;
         }
         else if (strcmp(argv[i] + 2, "line-size") == 0) {
@@ -296,6 +305,10 @@ dump_file(mrb_state *mrb, FILE *wfp, const char *outfile, struct RProc *proc, st
       n = mrb_dump_irep_cstruct(mrb, irep, args->flags, wfp, args->initname);
     }
     else {
+      if (args->flags & MRB_DUMP_OCTAL && args->flags & MRB_DUMP_HEX) {
+        fprintf(stderr, "%s: options -8 and -6 were used together\n", args->prog);
+        return MRB_DUMP_INVALID_ARGUMENT;
+      }
       n = mrb_dump_irep_cvar(mrb, irep, args->flags, wfp, args->initname, args->line_size);
     }
     if (n == MRB_DUMP_INVALID_ARGUMENT) {
